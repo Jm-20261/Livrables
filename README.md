@@ -1,10 +1,29 @@
 # Projet 5 — Migration CSV vers MongoDB (NoSQL)
 
 ## Contexte
-Ce projet consiste à migrer un dataset médical fourni au format CSV vers une base de données NoSQL (MongoDB).  
-L’objectif est d’obtenir un script simple à exécuter, relançable, et qui stocke les données avec des types cohérents.
+Ce projet (OpenClassrooms — **Projet 5**) consiste à migrer un dataset médical fourni au format **CSV** vers une base **NoSQL** (MongoDB).
+L’objectif est de livrer une solution **simple à exécuter**, **relançable** (idempotente) et **documentée**, puis de la **conteneuriser** avec Docker.
 
-Dataset utilisé : `healthcare_dataset.csv` (Kaggle - healthcare dataset)
+Dataset utilisé : `healthcare_dataset.csv` (Kaggle — healthcare dataset)
+
+---
+
+## Attendus OpenClassrooms (livrables)
+Ce dépôt contient les éléments demandés pour le projet :
+
+- **Script de migration** : import du CSV vers MongoDB (relançable, sans doublons).
+- **`requirements.txt`** : dépendances Python nécessaires au script.
+- **README** : explication de la logique, schéma des données, exécution locale + Docker, dépannage.
+- **Docker** :
+  - `docker-compose.yml` : lance MongoDB + exécute la migration
+  - `Dockerfile` / `entrypoint.sh` : conteneurisation du script
+  - **Volumes** : persistance MongoDB + montage du dossier CSV
+- **Sécurité** :
+  - authentification MongoDB activée
+  - rôles utilisateurs documentés (admin / applicatif / lecture seule)
+  - secrets non versionnés via `.env` (modèle fourni : `.env.example`)
+
+> Remarque : le déploiement AWS est traité dans un document séparé (si demandé). Ce README couvre la migration + Docker.
 
 ---
 
@@ -21,7 +40,7 @@ Dataset utilisé : `healthcare_dataset.csv` (Kaggle - healthcare dataset)
 ### Étape 2 — Docker
 - Conteneuriser MongoDB et la migration
 - Exécuter la migration via `docker compose`
-- Utiliser des volumes (données Mongo + données CSV)
+- Utiliser des volumes (données MongoDB + dataset CSV)
 
 ---
 
@@ -33,7 +52,7 @@ Dataset utilisé : `healthcare_dataset.csv` (Kaggle - healthcare dataset)
 ---
 
 ## Schéma des données (collection `admissions`)
-Chaque ligne du CSV correspond à une admission / séjour.  
+Chaque ligne du CSV correspond à une admission / séjour.
 Le script stocke chaque ligne sous forme d’un document avec les champs :
 
 - `name` (string)
@@ -51,30 +70,26 @@ Le script stocke chaque ligne sous forme d’un document avec les champs :
 - `discharge_date` (date)
 - `medication` (string)
 - `test_results` (string)
-- `record_id` (string, unique) : identifiant calculé à partir des valeurs de la ligne
+- `record_id` (string, **unique**) : identifiant calculé à partir des valeurs de la ligne (hash)
 
 ---
 
 ## Logique de migration
 
 ### 1) Lecture + validation
-Le script lit le CSV et vérifie la présence des colonnes attendues.  
+Le script lit le CSV et vérifie la présence des colonnes attendues.
 Si une colonne est manquante, le script s’arrête avec une erreur explicite.
 
 ### 2) Typage des champs
-Le CSV contient souvent des valeurs au format texte.  
+Le CSV contient souvent des valeurs au format texte.
 Le script convertit :
 - `Date of Admission`, `Discharge Date` -> `datetime`
-- `Age`, `Room Number` -> entiers
-- `Billing Amount` -> float
-
-Cela permet ensuite des filtres, tris et agrégations fiables en base.
+- `Age`, `Room Number` -> `int`
+- `Billing Amount` -> `float`
 
 ### 3) Anti-doublons avec `record_id` + index unique
-Le dataset peut contenir des doublons exacts.  
-Le script calcule un champ `record_id` (hash SHA256) basé sur les valeurs de la ligne :
-- deux lignes identiques produisent le même `record_id`
-
+Le script calcule un champ `record_id` (hash SHA256) basé sur les valeurs de la ligne.
+Deux lignes identiques produisent le même `record_id`.
 Un **index unique** sur `record_id` empêche l’insertion de doublons.
 
 ### 4) Upsert (migration relançable)
@@ -100,7 +115,7 @@ Les insertions se font par lots (`batch_size`) via `bulk_write` pour de meilleur
 ---
 
 ## Authentification et rôles (sécurité)
-MongoDB est configuré avec authentification et 3 profils (principe du moindre privilège) :
+MongoDB est configuré avec authentification et **3 profils** (principe du moindre privilège) :
 
 ### 1) Administrateur (maintenance)
 - Utilisateur : `mongo_admin`
@@ -145,48 +160,57 @@ MongoDB est configuré avec authentification et 3 profils (principe du moindre p
 
 ## Étape 1 — Exécution sans Docker (local)
 
-1) Créer un environnement virtuel
+### 1) Créer un environnement virtuel
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-2) Installer les dépendances
+```
+
+### 2) Installer les dépendances
+```bash
 pip install -r requirements.txt
-3) Lancer MongoDB (local)
+```
+
+### 3) Lancer MongoDB (local)
 MongoDB doit être démarré et accessible sur :
-
+```text
 mongodb://localhost:27017
-4) Exécuter le script de migration (local)
-Placer le fichier CSV dans data/healthcare_dataset.csv puis exécuter :
+```
 
+### 4) Exécuter le script de migration (local)
+Placer le fichier CSV dans `data/healthcare_dataset.csv` puis exécuter :
+```bash
 python migrate_csv_to_mongodb.py --csv data/healthcare_dataset.csv
+```
+
 Paramètres disponibles :
-
---mongo-uri : URI MongoDB (défaut mongodb://localhost:27017)
-
---db : base MongoDB (défaut medical_db)
-
---collection : collection (défaut admissions)
-
---batch-size : taille des lots (défaut 5000)
+- `--mongo-uri` : URI MongoDB (défaut `mongodb://localhost:27017`)
+- `--db` : base MongoDB (défaut `medical_db`)
+- `--collection` : collection (défaut `admissions`)
+- `--batch-size` : taille des lots (défaut `5000`)
 
 Exemple complet :
-
+```bash
 python migrate_csv_to_mongodb.py \
   --csv data/healthcare_dataset.csv \
   --mongo-uri mongodb://localhost:27017 \
   --db medical_db \
   --collection admissions \
   --batch-size 5000
-5) Vérification rapide
-Après migration, le dataset dédoublonné contient environ 54 966 documents.
+```
+
+### 5) Vérification rapide
+Après migration, le dataset dédoublonné contient environ **54 966** documents.
+
+---
 
 ## Étape 2 — Exécution avec Docker Compose
 
-Configuration (variables d’environnement)
-Créer un fichier .env à la racine (ne pas le versionner) en s’appuyant sur .env.example.
+### Configuration (variables d’environnement)
+Créer un fichier `.env` à la racine (ne pas le versionner) en s’appuyant sur `.env.example`.
 
-Exemple .env :
-
+Exemple `.env` :
+```env
 MONGO_DB=medical_db
 
 MONGO_ROOT_USER=mongo_admin
@@ -197,62 +221,90 @@ MONGO_APP_PASSWORD=change_me_app
 
 MONGO_READ_USER=read_user
 MONGO_READ_PASSWORD=change_me_read
-Le fichier .env est ignoré par Git via .gitignore (seuls .env.example et le code sont versionnés).
+```
 
-1) Démarrer MongoDB + lancer la migration
+Le fichier `.env` est ignoré par Git via `.gitignore` (seuls `.env.example` et le code sont versionnés).
+
+### 1) Démarrer MongoDB + lancer la migration
 Depuis la racine du projet :
-
+```bash
 docker compose up --build
-Le service mongo démarre MongoDB avec authentification
+```
 
-Le service migrate exécute la migration puis se termine automatiquement
+- Le service `mongo` démarre MongoDB avec authentification
+- Le service `migrate` exécute la migration puis se termine automatiquement
 
-2) Vérifier l’état des conteneurs
+### 2) Vérifier l’état des conteneurs
+```bash
 docker compose ps
+```
+
 Attendu :
+- `mongo` : Up (healthy)
+- `migrate` : Exited (0) une fois la migration terminée
 
-mongo : Up (healthy)
-
-migrate : Exited (0) une fois la migration terminée
-
-3) Logs
+### 3) Logs
 Logs migration :
-
+```bash
 docker compose logs -f migrate
+```
+
 Logs MongoDB :
-
+```bash
 docker compose logs -f mongo
-4) Arrêter
+```
+
+### 4) Arrêter
+```bash
 docker compose down
-5) Réinitialiser complètement la base (⚠️ supprime les données)
-Comme mongo-init/ ne s’exécute qu’au premier démarrage, il faut supprimer le volume si l’on change les utilisateurs/mots de passe :
+```
 
+### 5) Réinitialiser complètement la base (⚠️ supprime les données)
+Comme `mongo-init/` ne s’exécute qu’au premier démarrage, il faut supprimer le volume si l’on change les utilisateurs/mots de passe :
+```bash
 docker compose down -v
 docker compose up --build
-Connexion MongoDB Compass (avec authentification)
-Recommandation : utiliser 127.0.0.1 et directConnection=true pour éviter les soucis localhost/IPv6.
+```
 
-Lecture seule
+---
+
+## Connexion MongoDB Compass (avec authentification)
+Recommandation : utiliser `127.0.0.1` et `directConnection=true` pour éviter les soucis `localhost/IPv6`.
+
+### Lecture seule
+```text
 mongodb://read_user:<MOT_DE_PASSE>@127.0.0.1:27017/medical_db?authSource=medical_db&directConnection=true
-Lecture/écriture (migration)
-mongodb://app_user:<MOT_DE_PASSE>@127.0.0.1:27017/medical_db?authSource=medical_db&directConnection=true
-Admin
-mongodb://mongo_admin:<MOT_DE_PASSE>@127.0.0.1:27017/admin?authSource=admin&directConnection=true
-Dépannage (Troubleshooting)
-La base / les utilisateurs ne se créent pas
-Les scripts mongo-init/ ne s’exécutent qu’au premier démarrage si le volume est vide.
-Solution :
+```
 
+### Lecture/écriture (migration)
+```text
+mongodb://app_user:<MOT_DE_PASSE>@127.0.0.1:27017/medical_db?authSource=medical_db&directConnection=true
+```
+
+### Admin
+```text
+mongodb://mongo_admin:<MOT_DE_PASSE>@127.0.0.1:27017/admin?authSource=admin&directConnection=true
+```
+
+---
+
+## Dépannage (Troubleshooting)
+
+### La base / les utilisateurs ne se créent pas
+Les scripts `mongo-init/` ne s’exécutent qu’au premier démarrage si le volume est vide.  
+Solution :
+```bash
 docker compose down -v
 docker compose up --build
-Erreur de montage mongo-init (not a directory)
-Vérifier que mongo-init est bien un dossier et contient 01-create-users.js.
+```
 
-Compass ne voit pas medical_db
-Vérifier que la connexion Compass utilise 127.0.0.1:27017
+### Erreur de montage `mongo-init` (not a directory)
+Vérifier que `mongo-init` est bien un dossier et contient `01-create-users.js`.
 
-Ajouter directConnection=true
-
-Vérifier que le port est exposé :
-
+### Compass ne voit pas `medical_db`
+- Vérifier que la connexion Compass utilise `127.0.0.1:27017`
+- Ajouter `directConnection=true`
+- Vérifier que le port est exposé :
+```bash
 docker compose ps
+```

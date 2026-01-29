@@ -1,7 +1,7 @@
 # Projet 5 — Migration CSV vers MongoDB (NoSQL)
 
 ## Contexte
-Ce projet (OpenClassrooms — **Projet 5**) consiste à migrer un dataset médical fourni au format **CSV** vers une base **NoSQL** (MongoDB).
+Ce projet consiste à migrer un dataset médical fourni au format **CSV** vers une base NoSQL (MongoDB).
 L’objectif est de livrer une solution **simple à exécuter**, **relançable** (idempotente) et **documentée**, puis de la **conteneuriser** avec Docker.
 
 Dataset utilisé : `healthcare_dataset.csv` (Kaggle — healthcare dataset)
@@ -23,7 +23,6 @@ Ce dépôt contient les éléments demandés pour le projet :
   - rôles utilisateurs documentés (admin / applicatif / lecture seule)
   - secrets non versionnés via `.env` (modèle fourni : `.env.example`)
 
-> Remarque : le déploiement AWS est traité dans un document séparé (si demandé). Ce README couvre la migration + Docker.
 
 ---
 

@@ -16,7 +16,10 @@ services:
       - mongo_data:/data/db
       - ./mongo-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "mongodb://localhost:27017/admin", "--eval", "db.runCommand({ ping: 1 })"]
+      test: [
+          "CMD", "mongosh", "--quiet",
+          "mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@localhost:27017/admin",
+          "--eval", "db.runCommand({ ping: 1 })"]
       interval: 5s
       timeout: 3s
       retries: 30

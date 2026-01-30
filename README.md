@@ -264,6 +264,25 @@ Comme `mongo-init/` ne s’exécute qu’au premier démarrage, il faut supprime
 docker compose down -v
 docker compose up --build
 ```
+---
+
+## Tests (unitaires + intégration)
+
+Il y a **5 tests au total** :
+- **4 tests unitaires** (rapides, sans MongoDB)
+- **1 test d’intégration** (vérifie les données dans MongoDB après migration)
+
+L’objectif des tests est de prouver que :
+- le CSV contient bien les **colonnes attendues**
+- le calcul de `record_id` est **stable** (même ligne → même id, ligne différente → id différent)
+- la migration a bien **inséré des données** dans MongoDB
+- l’index unique sur `record_id` est bien créé
+
+> Les tests sont exécutés avec **pytest**.
+
+## Lancer les test
+
+python -m pytest -q
 
 ---
 
